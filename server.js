@@ -17,15 +17,66 @@ const io = new Server(server, {
   }
 });
 
+const SYSTEM_USER = "Sistema";
+let typingTimeouts = {}; // user: timeoutId
+
 io.on("connection", (socket) => {
-  // Evento 'message' -> repassa msg para todos os conectados
+  let userName = null;
+
+  socket.on("user_joined", ({ user }) => {
+    userName = user;
+    // Envia a mensagem "system" só pra ele mesmo
+    if (user)
+      socket.emit("system", {
+        type: "system",
+        text: "entrou na sala.",
+        user,
+        timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
+      });
+  });
+
+  socket.on("user_left", ({ user }) => {
+    // Apenas exibe pro próprio usuário
+    socket.emit("system", {
+      type: "system",
+      text: "saiu da sala.",
+      user,
+      timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
+    });
+  });
+
   socket.on("message", (msg) => {
-    // garante formato: { text, user, timestamp }
+    // Espera estrutura: { type: message, text, user, timestamp }
     io.emit("message", msg);
   });
 
+  // O evento "typing" será retornado SÓ para o próprio usuário que está digitando.
+  socket.on("typing", ({ user, isTyping }) => {
+    socket.emit("typing", { user, isTyping: !!isTyping });
+    // Limpa qualquer timeout antigo
+    if (typingTimeouts[user]) clearTimeout(typingTimeouts[user]);
+    typingTimeouts[user] = setTimeout(() => {
+      socket.emit("typing", { user, isTyping: false });
+      delete typingTimeouts[user];
+    }, 2500);
+  });
+  socket.on("stop_typing", ({ user }) => {
+    if (typingTimeouts[user]) {
+      clearTimeout(typingTimeouts[user]);
+      delete typingTimeouts[user];
+    }
+    socket.emit("typing", { user, isTyping: false });
+  });
+
   socket.on("disconnect", () => {
-    // nada extra por enquanto
+    if (userName) {
+      socket.emit("system", {
+        type: "system",
+        text: "desconectou.",
+        user: userName,
+        timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
+      });
+    }
   });
 });
 
