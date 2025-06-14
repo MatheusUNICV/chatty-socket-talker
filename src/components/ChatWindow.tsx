@@ -4,11 +4,9 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { toast } from "@/hooks/use-toast";
 import NamePrompt from "./NamePrompt";
+import { io, Socket } from "socket.io-client";
 
-// Gera um identificador curto para "quem é você" (sessão anônima)
-// substitui getSessionId por getUserName
 function getUserName() {
-  // Reutiliza sessionStorage para manter o nome durante a sessão.
   if (window.sessionStorage.getItem("chatName")) {
     return window.sessionStorage.getItem("chatName")!;
   }
@@ -17,55 +15,51 @@ function getUserName() {
 
 interface WSMessage {
   text: string;
-  user: string;      // Agora: nome do usuário
+  user: string;
   timestamp: string;
 }
 
-const WS_HOST = "ws://localhost:8081"; // Ajuste conforme seu backend rodar
+const SOCKET_HOST = "http://localhost:3001";
 
 const ChatWindow: React.FC = () => {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState<string | null>(getUserName());
-  const ws = useRef<WebSocket | null>(null);
-  // Removed: const myId = useRef(getSessionId());
+  const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // salva o nome escolhido e atualiza o estado
   const handleSetName = (newName: string) => {
     window.sessionStorage.setItem("chatName", newName);
     setName(newName);
   };
 
   useEffect(() => {
-    if (!name) return; // só conecta ao websocket depois do nome definido
+    if (!name) return; // conecta só após definir nome
 
-    ws.current = new WebSocket(WS_HOST);
+    const socket = io(SOCKET_HOST, { transports: ["websocket"] });
 
-    ws.current.onopen = () => {
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
       setConnected(true);
       toast({ title: "Conectado ao chat!" });
-    };
+    });
 
-    ws.current.onclose = () => {
+    socket.on("disconnect", () => {
       setConnected(false);
-      toast({ title: "Desconectado do chat", description: "Tentando reconectar..." });
-      setTimeout(() => window.location.reload(), 2000); // reload só roda com nome já salvo
-    };
+      toast({ title: "Desconectado do chat", description: "Reconectando..." });
+    });
 
-    ws.current.onerror = () => {
+    socket.on("connect_error", () => {
       toast({ title: "Erro de conexão", description: "Verifique o backend!" });
-    };
+    });
 
-    ws.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setMessages((prev) => [...prev, data]);
-      } catch (e) { }
-    };
+    socket.on("message", (data: WSMessage) => {
+      setMessages((prev) => [...prev, data]);
+    });
 
     return () => {
-      ws.current?.close();
+      socket.disconnect();
     };
   }, [name]);
 
@@ -77,14 +71,13 @@ const ChatWindow: React.FC = () => {
     if (!name) return;
     const msg: WSMessage = {
       text,
-      user: name, // Envia o nome, não mais ID
+      user: name,
       timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
     };
-    ws.current?.send(JSON.stringify(msg));
+    socketRef.current?.emit("message", msg);
     setMessages((prev) => [...prev, msg]);
   };
 
-  // Se nome não definido, pede via modal
   if (!name) {
     return (
       <div className="flex flex-col items-center justify-center h-[320px] bg-card rounded-lg border shadow w-full md:w-[600px] mx-auto mt-8">
