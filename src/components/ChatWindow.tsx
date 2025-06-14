@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
@@ -27,7 +28,7 @@ const ChatWindow: React.FC = () => {
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState<string | null>(getUserName());
   const ws = useRef<WebSocket | null>(null);
-  const myId = useRef(getSessionId());
+  // Removed: const myId = useRef(getSessionId());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // salva o nome escolhido e atualiza o estado
