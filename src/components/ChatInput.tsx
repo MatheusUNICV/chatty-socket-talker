@@ -5,9 +5,10 @@ import { Send } from "lucide-react";
 interface ChatInputProps {
   onSend: (msg: string) => void;
   disabled?: boolean;
+  onTyping?: () => void; // Added prop for typing indication
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, onTyping }) => {
   const [value, setValue] = useState("");
 
   const sendMessage = () => {
@@ -30,7 +31,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
         className="flex-1 resize-none rounded-md p-2 border focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px] max-h-[80px] text-sm"
         placeholder="Digite sua mensagem..."
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          onTyping && onTyping(); // Call onTyping when typing occurs
+        }}
         onKeyDown={onKeyDown}
         disabled={disabled}
         rows={1}
@@ -48,3 +52,4 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
 };
 
 export default ChatInput;
+
