@@ -28,7 +28,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, onTyping }) => 
   return (
     <div className="flex w-full gap-2 items-center py-3 px-2 bg-card border-t">
       <textarea
-        className="flex-1 resize-none rounded-md p-2 border focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px] max-h-[80px] text-sm"
+        className="flex-1 resize-none rounded-md p-2 border focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px] max-h-[80px] text-sm bg-background text-foreground placeholder:text-muted-foreground"
         placeholder="Digite sua mensagem..."
         value={value}
         onChange={(e) => {
@@ -38,6 +38,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, onTyping }) => 
         onKeyDown={onKeyDown}
         disabled={disabled}
         rows={1}
+        style={{ color: "hsl(var(--foreground))", background: "hsl(var(--background))" }}
       />
       <button
         aria-label="Enviar"
@@ -52,4 +53,3 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, onTyping }) => 
 };
 
 export default ChatInput;
-

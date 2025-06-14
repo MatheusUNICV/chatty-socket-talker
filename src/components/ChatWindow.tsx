@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
@@ -29,7 +28,7 @@ type WSMessage =
       timestamp: string;
     };
 
-const SOCKET_HOST = "http://localhost:3001";
+const SOCKET_HOST = "http://192.168.201.2:3001";
 
 const ChatWindow: React.FC = () => {
   const [messages, setMessages] = useState<WSMessage[]>([]);
@@ -136,7 +135,10 @@ const ChatWindow: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full max-h-[70vh] md:max-h-[70vh] w-full md:w-[600px] mx-auto bg-card rounded-lg border shadow overflow-hidden">
+    <div className="flex flex-col h-full max-h-[70vh] w-full mx-auto bg-card rounded-lg border shadow overflow-hidden
+      md:max-h-[70vh] md:w-[600px]
+      sm:max-h-[80dvh] sm:w-full
+      ">
       {/* Header com botão de sair */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
         <div className="font-semibold text-muted-foreground">
@@ -178,4 +180,3 @@ const ChatWindow: React.FC = () => {
 };
 
 export default ChatWindow;
-
