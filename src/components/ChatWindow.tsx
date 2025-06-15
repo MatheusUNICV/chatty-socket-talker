@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
@@ -34,7 +35,7 @@ const ChatWindow: React.FC = () => {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState<string | null>(getUserName());
-  const [imTyping, setImTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState<string | null>(null); // Novo estado informando quem está digitando (outro usuário)
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -49,7 +50,6 @@ const ChatWindow: React.FC = () => {
     window.sessionStorage.removeItem("chatName");
     setName(null);
     setMessages([]);
-    // O socket será limpo automaticamente pelo useEffect de cleanup
     toast({ title: "Você saiu do chat." });
   };
 
@@ -83,8 +83,17 @@ const ChatWindow: React.FC = () => {
     });
 
     socket.on("typing", ({ user, isTyping }: { user: string; isTyping: boolean }) => {
-      if (user === name) {
-        setImTyping(isTyping);
+      // Atualiza typingUser apenas se for outro usuário
+      if (user !== name) {
+        if (isTyping) {
+          setTypingUser(user);
+          if (typingTimeout.current) clearTimeout(typingTimeout.current);
+          typingTimeout.current = setTimeout(() => {
+            setTypingUser(null);
+          }, 2500);
+        } else {
+          setTypingUser(null);
+        }
       }
     });
 
@@ -96,7 +105,7 @@ const ChatWindow: React.FC = () => {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, imTyping]);
+  }, [messages, typingUser]);
 
   // Ao enviar mensagem
   const sendMsg = (text: string) => {
@@ -108,20 +117,16 @@ const ChatWindow: React.FC = () => {
       timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
     };
     socketRef.current?.emit("message", msg);
-    setMessages((prev) => [...prev, msg]);
-    setImTyping(false);
+    // Removido o setMessages aqui para evitar duplicidade
     socketRef.current?.emit("stop_typing", { user: name });
   };
 
   // Quando está digitando no input
   const handleTyping = () => {
     if (!name) return;
-    if (imTyping) return;
-    setImTyping(true);
     socketRef.current?.emit("typing", { user: name, isTyping: true });
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(() => {
-      setImTyping(false);
       socketRef.current?.emit("stop_typing", { user: name });
     }, 2500);
   };
@@ -167,9 +172,9 @@ const ChatWindow: React.FC = () => {
             system={m.type === "system"}
           />
         ))}
-        {imTyping && (
+        {typingUser && (
           <div className="flex justify-end">
-            <span className="text-xs text-primary-500">Você está digitando...</span>
+            <span className="text-xs text-primary-500">{typingUser} está digitando...</span>
           </div>
         )}
         <div ref={bottomRef} />
