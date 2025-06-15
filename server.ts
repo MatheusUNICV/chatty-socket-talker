@@ -13,7 +13,6 @@ const io = new Server(server, {
 });
 
 const SYSTEM_USER = "Sistema";
-// Tipar corretamente: o nome do usuário é string | null
 let typingTimeouts: Record<string, NodeJS.Timeout> = {};
 
 io.on('connection', (socket) => {
@@ -71,7 +70,9 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(3001, () => {
-  console.log('Servidor rodando na porta 3001');
+// ==== PORTA DINÂMICA PARA PLATAFORMAS COMO RAILWAY ====
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
+server.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
 
