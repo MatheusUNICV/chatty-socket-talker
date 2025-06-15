@@ -35,8 +35,8 @@ const ChatWindow: React.FC = () => {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState<string | null>(getUserName());
-  const [typingUser, setTypingUser] = useState<string | null>(null); // Novo estado informando quem está digitando (outro usuário)
-  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]); // Lista de pessoas digitando (exceto eu)
+  const typingTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +45,6 @@ const ChatWindow: React.FC = () => {
     setName(newName);
   };
 
-  // Novo handler para sair
   const handleLogout = () => {
     window.sessionStorage.removeItem("chatName");
     setName(null);
@@ -79,35 +78,61 @@ const ChatWindow: React.FC = () => {
     });
 
     socket.on("system", (data: WSMessage) => {
+      // Se for mensagem de entrada ("entrou na sala") do próprio usuário, ignora
+      if (
+        data.type === "system" &&
+        data.text === "entrou na sala." &&
+        data.user === name
+      ) {
+        return;
+      }
       setMessages((prev) => [...prev, data]);
     });
 
-    socket.on("typing", ({ user, isTyping }: { user: string; isTyping: boolean }) => {
-      // Atualiza typingUser apenas se for outro usuário
-      if (user !== name) {
+    socket.on(
+      "typing",
+      ({ user, isTyping }: { user: string; isTyping: boolean }) => {
+        if (!user || user === name) return; // Não conta eu mesmo!
+        setTypingUsers((prev) => {
+          if (isTyping) {
+            if (!prev.includes(user)) return [...prev, user];
+            return prev;
+          } else {
+            return prev.filter((u) => u !== user);
+          }
+        });
+
+        // Limpa timeout antigo e inicia novo, para cada usuário separadamente
         if (isTyping) {
-          setTypingUser(user);
-          if (typingTimeout.current) clearTimeout(typingTimeout.current);
-          typingTimeout.current = setTimeout(() => {
-            setTypingUser(null);
+          if (typingTimeouts.current[user])
+            clearTimeout(typingTimeouts.current[user]);
+          typingTimeouts.current[user] = setTimeout(() => {
+            setTypingUsers((prev) => prev.filter((u) => u !== user));
+            delete typingTimeouts.current[user];
           }, 2500);
         } else {
-          setTypingUser(null);
+          if (typingTimeouts.current[user]) {
+            clearTimeout(typingTimeouts.current[user]);
+            delete typingTimeouts.current[user];
+          }
         }
       }
-    });
+    );
 
     return () => {
       if (name) socket.emit("user_left", { user: name });
       socket.disconnect();
+      // Limpa timeouts quando sair
+      Object.values(typingTimeouts.current).forEach(clearTimeout);
+      typingTimeouts.current = {};
+      setTypingUsers([]);
     };
   }, [name]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typingUser]);
+  }, [messages, typingUsers]);
 
-  // Ao enviar mensagem
   const sendMsg = (text: string) => {
     if (!name || !text.trim()) return;
     const msg: WSMessage = {
@@ -117,17 +142,17 @@ const ChatWindow: React.FC = () => {
       timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
     };
     socketRef.current?.emit("message", msg);
-    // Removido o setMessages aqui para evitar duplicidade
     socketRef.current?.emit("stop_typing", { user: name });
   };
 
-  // Quando está digitando no input
   const handleTyping = () => {
     if (!name) return;
     socketRef.current?.emit("typing", { user: name, isTyping: true });
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => {
+    if (typingTimeouts.current[name]) clearTimeout(typingTimeouts.current[name]);
+    typingTimeouts.current[name] = setTimeout(() => {
       socketRef.current?.emit("stop_typing", { user: name });
+      clearTimeout(typingTimeouts.current[name]);
+      delete typingTimeouts.current[name];
     }, 2500);
   };
 
@@ -172,9 +197,13 @@ const ChatWindow: React.FC = () => {
             system={m.type === "system"}
           />
         ))}
-        {typingUser && (
+        {typingUsers.length > 0 && (
           <div className="flex justify-end">
-            <span className="text-xs text-primary-500">{typingUser} está digitando...</span>
+            {typingUsers.length === 1 ? (
+              <span className="text-xs text-primary-500">{typingUsers[0]} está digitando...</span>
+            ) : (
+              <span className="text-xs text-primary-500">tem várias pessoas digitando...</span>
+            )}
           </div>
         )}
         <div ref={bottomRef} />
@@ -185,3 +214,4 @@ const ChatWindow: React.FC = () => {
 };
 
 export default ChatWindow;
+
