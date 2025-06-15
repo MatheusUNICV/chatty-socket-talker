@@ -1,27 +1,18 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+import { Toaster } from "@/components/ui/toaster";
+import ChatWindow from "@/components/ChatWindow";
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <div className="min-h-screen flex flex-col items-center justify-start bg-background pt-10">
+    <h1 className="text-3xl font-bold mb-2">ChatZap</h1>
+    <p className="text-muted-foreground mb-4">
+      Envie mensagens em tempo real!<br />
+      <span className="text-xs">(Certifique-se que o backend está rodando em <code>ws://localhost:8081</code>)</span>
+    </p>
+    <ChatWindow />
+    <div className="mt-8 text-sm text-gray-400">Powered by React + Node.js + WebSocket</div>
+    <Toaster />
+  </div>
 );
 
 export default App;
