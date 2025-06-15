@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import ChatWindow from "@/components/ChatWindow";
 
 const App = () => (
-  <div className="min-h-screen flex flex-col items-center justify-start bg-background pt-10">
+  <div className="min-h-screen flex flex-col items-center justify-start pt-10 bg-gradient-to-br from-blue-600 to-purple-700">
     <h1 className="text-3xl font-bold mb-2">ChatZap</h1>
     <p className="text-muted-foreground mb-4">
       Envie mensagens em tempo real!<br />
@@ -16,3 +16,4 @@ const App = () => (
 );
 
 export default App;
+
