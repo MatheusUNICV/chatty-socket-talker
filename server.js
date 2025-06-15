@@ -1,43 +1,37 @@
 
-const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const { Server } = require("socket.io");
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
 
-const PORT = 3001;
 const app = express();
-app.use(cors({ origin: "http://localhost:8080", credentials: true }));
-
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:8080",
-    methods: ["GET", "POST"]
-  }
+    origin: '*',
+  },
 });
 
 const SYSTEM_USER = "Sistema";
-let typingTimeouts = {}; // user: timeoutId
+let typingTimeouts = {}; // Map user -> timeoutId
 
-io.on("connection", (socket) => {
+io.on('connection', (socket) => {
   let userName = null;
 
-  socket.on("user_joined", ({ user }) => {
+  socket.on('user_joined', ({ user }) => {
     userName = user;
-    // Envia a mensagem "system" só pra ele mesmo
-    if (user)
-      socket.emit("system", {
-        type: "system",
-        text: "entrou na sala.",
-        user,
-        timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
-      });
+    // Broadcast para todos (inclusive para quem entrou)
+    io.emit("system", {
+      type: "system",
+      text: "entrou na sala.",
+      user,
+      timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
+    });
   });
 
-  socket.on("user_left", ({ user }) => {
-    // Apenas exibe pro próprio usuário
-    socket.emit("system", {
+  socket.on('user_left', ({ user }) => {
+    // Broadcast para todos (inclusive para quem saiu)
+    io.emit("system", {
       type: "system",
       text: "saiu da sala.",
       user,
@@ -45,32 +39,33 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("message", (msg) => {
-    // Espera estrutura: { type: message, text, user, timestamp }
-    io.emit("message", msg);
+  socket.on('message', (msg) => {
+    // Estrutura esperada do frontend: { type: "message", text, user, timestamp }
+    io.emit('message', msg);
   });
 
-  // O evento "typing" será retornado SÓ para o próprio usuário que está digitando.
+  // Quando um usuário estiver digitando, avisa todos MENOS o próprio
   socket.on("typing", ({ user, isTyping }) => {
-    socket.emit("typing", { user, isTyping: !!isTyping });
-    // Limpa qualquer timeout antigo
+    socket.broadcast.emit("typing", { user, isTyping: !!isTyping });
+    // Timeout para parar o "digitando" após 2.5s
     if (typingTimeouts[user]) clearTimeout(typingTimeouts[user]);
     typingTimeouts[user] = setTimeout(() => {
-      socket.emit("typing", { user, isTyping: false });
+      socket.broadcast.emit("typing", { user, isTyping: false });
       delete typingTimeouts[user];
     }, 2500);
   });
+
   socket.on("stop_typing", ({ user }) => {
     if (typingTimeouts[user]) {
       clearTimeout(typingTimeouts[user]);
       delete typingTimeouts[user];
     }
-    socket.emit("typing", { user, isTyping: false });
+    socket.broadcast.emit("typing", { user, isTyping: false });
   });
 
-  socket.on("disconnect", () => {
+  socket.on('disconnect', () => {
     if (userName) {
-      socket.emit("system", {
+      io.emit("system", {
         type: "system",
         text: "desconectou.",
         user: userName,
@@ -80,6 +75,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Socket.IO server rodando em http://localhost:${PORT}`);
+server.listen(3001, () => {
+  console.log('Servidor rodando na porta 3001');
 });
