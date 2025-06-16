@@ -28,7 +28,7 @@ const NamePrompt: React.FC<NamePromptProps> = ({ onSubmit }) => {
         onChange={e => setValue(e.target.value)}
         className="max-w-xs"
       />
-      <Button type="submit" disabled={!value.trim()}>Entrar no chat</Button>
+      <Button type="submit" disabled={!value.trim()}>Continuar</Button>
     </form>
   );
 };
