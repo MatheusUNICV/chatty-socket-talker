@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import ChatInput from "./ChatInput";
 import ChatHeader from "./ChatHeader";
@@ -36,9 +35,8 @@ const ChatWindow: React.FC = () => {
   };
 
   const handleLogout = () => {
-    window.sessionStorage.removeItem("chatName");
+    // Remove apenas a sala, mantém o nome
     window.sessionStorage.removeItem("chatRoom");
-    setName(null);
     setCurrentRoom(null);
     setMessages([]);
     toast({ title: "Você saiu do chat." });

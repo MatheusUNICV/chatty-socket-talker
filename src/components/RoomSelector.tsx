@@ -8,8 +8,10 @@ interface RoomSelectorProps {
 }
 
 const RoomSelector: React.FC<RoomSelectorProps> = ({ onJoinRoom }) => {
-  const [step, setStep] = useState<'name' | 'room'>('name');
-  const [name, setName] = useState("");
+  // Verificar se já existe um nome salvo
+  const savedName = window.sessionStorage.getItem("chatName");
+  const [step, setStep] = useState<'name' | 'room'>(savedName ? 'room' : 'name');
+  const [name, setName] = useState(savedName || "");
 
   const handleNameSubmit = (enteredName: string) => {
     setName(enteredName);
