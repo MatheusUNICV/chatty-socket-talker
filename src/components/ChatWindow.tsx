@@ -3,17 +3,21 @@ import React, { useEffect, useRef, useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { toast } from "@/hooks/use-toast";
-import NamePrompt from "./NamePrompt";
+import RoomSelector from "./RoomSelector";
 import { io, Socket } from "socket.io-client";
-import { LogOut } from "lucide-react";
+import { LogOut, Users } from "lucide-react";
 
-// Utilitário para nome do usuário salvo na session
-function getUserName() {
-  if (window.sessionStorage.getItem("chatName")) {
-    return window.sessionStorage.getItem("chatName")!;
-  }
-  return null;
+// Utilitário para dados salvos na session
+function getUserData() {
+  const name = window.sessionStorage.getItem("chatName");
+  const room = window.sessionStorage.getItem("chatRoom");
+  return { name, room };
 }
+
+const ROOM_NAMES = {
+  'geral': 'Sala Geral',
+  'tecnologia': 'Sala Tecnologia'
+};
 
 type WSMessage =
   | {
@@ -21,12 +25,14 @@ type WSMessage =
       text: string;
       user: string;
       timestamp: string;
+      room: string;
     }
   | {
       type: "system";
       text: string;
       user: string;
       timestamp: string;
+      room: string;
     };
 
 const SOCKET_HOST = "http://192.168.201.2:3001";
@@ -34,34 +40,40 @@ const SOCKET_HOST = "http://192.168.201.2:3001";
 const ChatWindow: React.FC = () => {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const [connected, setConnected] = useState(false);
-  const [name, setName] = useState<string | null>(getUserName());
-  const [typingUsers, setTypingUsers] = useState<string[]>([]); // Lista de pessoas digitando (exceto eu)
+  const { name: savedName, room: savedRoom } = getUserData();
+  const [name, setName] = useState<string | null>(savedName);
+  const [currentRoom, setCurrentRoom] = useState<string | null>(savedRoom);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const handleSetName = (newName: string) => {
+  const handleJoinRoom = (newName: string, room: string) => {
     window.sessionStorage.setItem("chatName", newName);
+    window.sessionStorage.setItem("chatRoom", room);
     setName(newName);
+    setCurrentRoom(room);
   };
 
   const handleLogout = () => {
     window.sessionStorage.removeItem("chatName");
+    window.sessionStorage.removeItem("chatRoom");
     setName(null);
+    setCurrentRoom(null);
     setMessages([]);
     toast({ title: "Você saiu do chat." });
   };
 
   useEffect(() => {
-    if (!name) return;
+    if (!name || !currentRoom) return;
 
     const socket = io(SOCKET_HOST, { transports: ["websocket"] });
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setConnected(true);
-      toast({ title: "Conectado ao chat!" });
-      socket.emit("user_joined", { user: name });
+      toast({ title: `Conectado à ${ROOM_NAMES[currentRoom as keyof typeof ROOM_NAMES]}!` });
+      socket.emit("join_room", { user: name, room: currentRoom });
     });
 
     socket.on("disconnect", () => {
@@ -74,25 +86,23 @@ const ChatWindow: React.FC = () => {
     });
 
     socket.on("message", (data: WSMessage) => {
-      setMessages((prev) => [...prev, data]);
+      // Só adiciona mensagens da sala atual
+      if (data.room === currentRoom) {
+        setMessages((prev) => [...prev, data]);
+      }
     });
 
     socket.on("system", (data: WSMessage) => {
-      // Se for mensagem de entrada ("entrou na sala") do próprio usuário, ignora
-      if (
-        data.type === "system" &&
-        data.text === "entrou na sala." &&
-        data.user === name
-      ) {
-        return;
+      // Só adiciona mensagens da sala atual e ignora própria entrada
+      if (data.room === currentRoom && !(data.type === "system" && data.text === "entrou na sala." && data.user === name)) {
+        setMessages((prev) => [...prev, data]);
       }
-      setMessages((prev) => [...prev, data]);
     });
 
     socket.on(
       "typing",
       ({ user, isTyping }: { user: string; isTyping: boolean }) => {
-        if (!user || user === name) return; // Não conta eu mesmo!
+        if (!user || user === name) return;
         setTypingUsers((prev) => {
           if (isTyping) {
             if (!prev.includes(user)) return [...prev, user];
@@ -102,7 +112,6 @@ const ChatWindow: React.FC = () => {
           }
         });
 
-        // Limpa timeout antigo e inicia novo, para cada usuário separadamente
         if (isTyping) {
           if (typingTimeouts.current[user])
             clearTimeout(typingTimeouts.current[user]);
@@ -120,46 +129,46 @@ const ChatWindow: React.FC = () => {
     );
 
     return () => {
-      if (name) socket.emit("user_left", { user: name });
+      if (name && currentRoom) socket.emit("user_left", { user: name, room: currentRoom });
       socket.disconnect();
-      // Limpa timeouts quando sair
       Object.values(typingTimeouts.current).forEach(clearTimeout);
       typingTimeouts.current = {};
       setTypingUsers([]);
     };
-  }, [name]);
+  }, [name, currentRoom]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typingUsers]);
 
   const sendMsg = (text: string) => {
-    if (!name || !text.trim()) return;
+    if (!name || !text.trim() || !currentRoom) return;
     const msg: WSMessage = {
       type: "message",
       text,
       user: name,
+      room: currentRoom,
       timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
     };
     socketRef.current?.emit("message", msg);
-    socketRef.current?.emit("stop_typing", { user: name });
+    socketRef.current?.emit("stop_typing", { user: name, room: currentRoom });
   };
 
   const handleTyping = () => {
-    if (!name) return;
-    socketRef.current?.emit("typing", { user: name, isTyping: true });
+    if (!name || !currentRoom) return;
+    socketRef.current?.emit("typing", { user: name, isTyping: true, room: currentRoom });
     if (typingTimeouts.current[name]) clearTimeout(typingTimeouts.current[name]);
     typingTimeouts.current[name] = setTimeout(() => {
-      socketRef.current?.emit("stop_typing", { user: name });
+      socketRef.current?.emit("stop_typing", { user: name, room: currentRoom });
       clearTimeout(typingTimeouts.current[name]);
       delete typingTimeouts.current[name];
     }, 2500);
   };
 
-  if (!name) {
+  if (!name || !currentRoom) {
     return (
-      <div className="flex flex-col items-center justify-center h-[320px] bg-card rounded-lg border shadow w-full md:w-[600px] mx-auto mt-8">
-        <NamePrompt onSubmit={handleSetName} />
+      <div className="flex flex-col items-center justify-center h-[400px] bg-card rounded-lg border shadow w-full md:w-[600px] mx-auto mt-8">
+        <RoomSelector onJoinRoom={handleJoinRoom} />
       </div>
     );
   }
@@ -169,10 +178,14 @@ const ChatWindow: React.FC = () => {
       md:max-h-[70vh] md:w-[600px]
       sm:max-h-[80dvh] sm:w-full
       ">
-      {/* Header com botão de sair */}
+      {/* Header com informações da sala */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
-        <div className="font-semibold text-muted-foreground">
-          Bem-vindo, <span className="text-primary">{name}</span>
+        <div className="flex items-center gap-2">
+          <Users size={16} className="text-primary" />
+          <div className="font-semibold text-sm">
+            <span className="text-primary">{ROOM_NAMES[currentRoom as keyof typeof ROOM_NAMES]}</span>
+            <div className="text-xs text-muted-foreground">{name}</div>
+          </div>
         </div>
         <button
           onClick={handleLogout}
@@ -183,9 +196,12 @@ const ChatWindow: React.FC = () => {
           <span className="sr-only">Sair</span>
         </button>
       </div>
+      
       <div className="flex-1 overflow-y-auto p-4 bg-background">
         {messages.length === 0 && (
-          <div className="text-muted-foreground text-center mt-14">Nenhuma mensagem ainda. Diga oi!</div>
+          <div className="text-muted-foreground text-center mt-14">
+            Bem-vindo à {ROOM_NAMES[currentRoom as keyof typeof ROOM_NAMES]}! Diga oi! 👋
+          </div>
         )}
         {messages.map((m, idx) => (
           <ChatMessage
@@ -202,7 +218,7 @@ const ChatWindow: React.FC = () => {
             {typingUsers.length === 1 ? (
               <span className="text-xs text-primary-500">{typingUsers[0]} está digitando...</span>
             ) : (
-              <span className="text-xs text-primary-500">tem várias pessoas digitando...</span>
+              <span className="text-xs text-primary-500">várias pessoas estão digitando...</span>
             )}
           </div>
         )}
@@ -214,4 +230,3 @@ const ChatWindow: React.FC = () => {
 };
 
 export default ChatWindow;
-

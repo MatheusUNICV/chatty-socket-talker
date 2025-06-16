@@ -13,62 +13,83 @@ const io = new Server(server, {
 });
 
 const SYSTEM_USER = "Sistema";
-let typingTimeouts = {}; // Map user -> timeoutId
+let typingTimeouts = {}; // Map user-room -> timeoutId
+
+// Salas disponíveis
+const AVAILABLE_ROOMS = {
+  'geral': 'Sala Geral',
+  'tecnologia': 'Sala Tecnologia'
+};
 
 io.on('connection', (socket) => {
   let userName = null;
+  let currentRoom = null;
 
-  socket.on('user_joined', ({ user }) => {
+  socket.on('join_room', ({ user, room }) => {
     userName = user;
-    // Broadcast para todos (inclusive para quem entrou)
-    io.emit("system", {
+    currentRoom = room;
+    
+    // Sair da sala anterior se houver
+    if (socket.rooms.size > 1) {
+      const previousRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+      previousRooms.forEach(r => socket.leave(r));
+    }
+    
+    // Entrar na nova sala
+    socket.join(room);
+    
+    // Notificar entrada na sala
+    socket.to(room).emit("system", {
       type: "system",
       text: "entrou na sala.",
       user,
+      room,
       timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
     });
   });
 
-  socket.on('user_left', ({ user }) => {
-    // Broadcast para todos (inclusive para quem saiu)
-    io.emit("system", {
+  socket.on('user_left', ({ user, room }) => {
+    socket.to(room).emit("system", {
       type: "system",
       text: "saiu da sala.",
       user,
+      room,
       timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
     });
   });
 
   socket.on('message', (msg) => {
-    // Estrutura esperada do frontend: { type: "message", text, user, timestamp }
-    io.emit('message', msg);
+    // Enviar mensagem apenas para usuários na mesma sala
+    socket.to(msg.room).emit('message', msg);
+    socket.emit('message', msg); // Enviar de volta para o remetente
   });
 
-  // Quando um usuário estiver digitando, avisa todos MENOS o próprio
-  socket.on("typing", ({ user, isTyping }) => {
-    socket.broadcast.emit("typing", { user, isTyping: !!isTyping });
-    // Timeout para parar o "digitando" após 2.5s
-    if (typingTimeouts[user]) clearTimeout(typingTimeouts[user]);
-    typingTimeouts[user] = setTimeout(() => {
-      socket.broadcast.emit("typing", { user, isTyping: false });
-      delete typingTimeouts[user];
+  socket.on("typing", ({ user, isTyping, room }) => {
+    socket.to(room).emit("typing", { user, isTyping: !!isTyping });
+    const key = `${user}-${room}`;
+    if (typingTimeouts[key]) clearTimeout(typingTimeouts[key]);
+    typingTimeouts[key] = setTimeout(() => {
+      socket.to(room).emit("typing", { user, isTyping: false });
+      delete typingTimeouts[key];
     }, 2500);
   });
 
-  socket.on("stop_typing", ({ user }) => {
-    if (typingTimeouts[user]) {
-      clearTimeout(typingTimeouts[user]);
-      delete typingTimeouts[user];
+  socket.on("stop_typing", ({ user, room }) => {
+    const key = `${user}-${room}`;
+    if (typingTimeouts[key]) {
+      clearTimeout(typingTimeouts[key]);
+      delete typingTimeouts[key];
     }
-    socket.broadcast.emit("typing", { user, isTyping: false });
+    socket.to(room).emit("typing", { user, isTyping: false });
   });
 
   socket.on('disconnect', () => {
-    if (userName) {
-      io.emit("system", {
+    if (userName && currentRoom) {
+      socket.to(currentRoom).emit("system", {
         type: "system",
         text: "desconectou.",
         user: userName,
+        room: currentRoom,
         timestamp: new Date().toLocaleTimeString("pt-BR", { hour12: false }),
       });
     }
