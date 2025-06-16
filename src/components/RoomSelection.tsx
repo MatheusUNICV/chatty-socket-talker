@@ -35,25 +35,39 @@ const RoomSelection: React.FC<RoomSelectionProps> = ({ name, onSelectRoom, onBac
         <div className="text-xl font-semibold">Olá, {name}! Escolha uma sala:</div>
       </div>
       
-      <div className="flex flex-col gap-2 w-full max-w-xs">
-        <div className="space-y-2">
-          {Object.entries(AVAILABLE_ROOMS).map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="room"
-                value={key}
-                checked={selectedRoom === key}
-                onChange={() => setSelectedRoom(key)}
-                className="text-primary focus:ring-primary"
-              />
-              <span className="text-sm">{label}</span>
-            </label>
-          ))}
-        </div>
+      <div className="flex flex-col gap-3 w-full max-w-xs">
+        {Object.entries(AVAILABLE_ROOMS).map(([key, label]) => (
+          <label 
+            key={key} 
+            className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-accent/50 ${
+              selectedRoom === key 
+                ? 'border-primary bg-primary/10' 
+                : 'border-border bg-card hover:border-primary/50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+              selectedRoom === key 
+                ? 'border-primary bg-primary' 
+                : 'border-muted-foreground'
+            }`}>
+              {selectedRoom === key && (
+                <div className="w-2 h-2 rounded-full bg-primary-foreground"></div>
+              )}
+            </div>
+            <input
+              type="radio"
+              name="room"
+              value={key}
+              checked={selectedRoom === key}
+              onChange={() => setSelectedRoom(key)}
+              className="sr-only"
+            />
+            <span className="text-sm font-medium">{label}</span>
+          </label>
+        ))}
       </div>
       
-      <Button type="submit">
+      <Button type="submit" className="mt-2">
         Entrar no chat
       </Button>
     </form>
